@@ -18,7 +18,7 @@ const createSendToken = (user, statusCode, res) => {
     expires: new Date(
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
-    httOnly: true,
+    httpOnly: true,
   }
 
   if (process.env.NODE_ENV === 'production') cookieOptions.secure = true
@@ -57,7 +57,7 @@ exports.login = catchAsync(async (req, res, next) => {
 
   const user = await User.findOne({ email }).select('+password')
 
-  if (!user || !user.correctPassword(password, user.password)) {
+  if (!user || !(await user.correctPassword(password, user.password))) {
     return next(new AppError('Incorrect email or password', 401))
   }
 
@@ -71,7 +71,7 @@ exports.protect = catchAsync(async (req, res, next) => {
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
   ) {
-    token = req.headers.authorization.spilt(' ')[1]
+    token = req.headers.authorization.split('Bearer ')[1]
   }
 
   if (!token) {
@@ -81,21 +81,21 @@ exports.protect = catchAsync(async (req, res, next) => {
   const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET)
 
   // 3) Check if user still exists
-  const freshUser = User.findById(decoded.id)
+  const currentUser = await User.findById(decoded.id)
 
-  if (!freshUser) {
+  if (!currentUser) {
     return next(
       new AppError('The user belonging to this token does no longer exist')
     )
   }
 
   // 4) Check if the user changed password after the token was issued
-  if (freshUser.changedPasswordAfter(decoded.iat)) {
+  if (currentUser.changedPasswordAfter(decoded.iat)) {
     return next(
       new AppError('User recently changed password! Please login again', 401)
     )
   }
-  req.user = freshUser
+  req.user = currentUser
   next()
 })
 
@@ -181,7 +181,7 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
 
 exports.updatePassword = catchAsync(async (req, res, next) => {
   // 1) Get User from collection
-  const user = User.findById(req.body.id).select('+password')
+  const user = await User.findById(req.user.id).select('+password')
   // 2) Check if POSTed current password is valid
   if (!(await user.correctPassword(req.body.passwordCurrent, user.password))) {
     return next(new AppError('Your current password is incorrect', 401))
