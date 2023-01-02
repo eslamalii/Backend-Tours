@@ -36,6 +36,7 @@ const tourSchema = new mongoose.Schema(
       default: 4.5,
       min: [1, 'Rating must be above 1.0'],
       max: [5, 'Rating must be below 5.0'],
+      set: (val) => Math.round(val * 10) / 10, // 4.666666, 46.6666, 47, 4.7
     },
     ratingsQuantity: {
       type: Number,
@@ -52,7 +53,7 @@ const tourSchema = new mongoose.Schema(
           // this only points to current doc on NEW document creation
           return val < this.price
         },
-        message: `Discount price (${VALUE}) should be below regular price`,
+        message: 'Discount price ({VALUE}) should be below regular price',
       },
     },
     summary: {
@@ -103,7 +104,12 @@ const tourSchema = new mongoose.Schema(
         day: Number,
       },
     ],
-    guides: [{ type: mongoose.Schema.ObjectId, ref: 'User' }],
+    guides: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   {
     toJSON: { virtuals: true },
